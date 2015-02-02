@@ -118,7 +118,7 @@ gain_ratio_c(float *examples, float *ys, float *ws, int size, int M, int cls_val
 	attr_dist[1] = size_weight;
 	best_score = -INFINITY;
 
-	for (ex = examples, ex_end = ex + (size_known - minInstances) * M, ex_next = ex + M, i = 0; ex < ex_end; ex += M, ex_next++, i++) {
+	for (ex = examples, ex_end = ex + (size_known - minInstances) * M, ex_next = ex + M, i = 0; ex < ex_end; ex += M, ex_next += M, i++) {
 		if (!isnan(ys[i])) {
 			cls = (int)ys[i];
 			dist_lt[cls] += ws[i];
@@ -211,6 +211,81 @@ finish:
 	free(attr_dist);
 	free(attr_dist_cls_known);
 	return score;
+}
+
+float
+mse_c(float *examples, float *ys, float *ws, int size, int M, int attr, float cls_mse, struct Args *args, float *best_split)
+{
+	float *ex, *ex_end, *ex_next;
+	int i, minInstances, size_known;
+	float size_attr_known, size_weight, cls_val, cls_score, best_score, size_attr_cls_known, score;
+
+	struct Variance {
+		double n, sum, sum2;
+	} var_lt = {0.0, 0.0, 0.0}, var_ge = {0.0, 0.0, 0.0};
+
+	/* minInstances should be at least 1, otherwise there is no point in splitting */
+	minInstances = args->minInstances < 1 ? 1 : args->minInstances;
+
+	/* sort */
+	compar_attr = attr;
+	qsort(examples, size, M * sizeof(float), compar_examples);
+
+	/* compute mse for every split */
+	size_known = size;
+	size_attr_known = 0.0;
+	for (ex = examples, ex_end = examples + size * M, i = 0; ex < ex_end; ex += M, i++) {
+		if (isnan(ex[attr])) {
+			size_known = (ex - examples) / M;
+			break;
+		}
+		if (!isnan(ys[i])) {
+			cls_val = ys[i];
+			var_ge.n += ws[i];
+			var_ge.sum += ws[i] * cls_val;
+			var_ge.sum2 += ws[i] * cls_val * cls_val;
+		}
+		size_attr_known += ws[i];
+	}
+
+	/* count the remaining examples with unknown values */
+	size_weight = size_attr_known;
+	for (ex_end = examples + size * M; ex < ex_end; ex += M)
+		size_weight += ws[i];
+
+	size_attr_cls_known = var_ge.n;
+	best_score = -INFINITY;
+
+	for (ex = examples, ex_end = ex + (size_known - minInstances) * M, ex_next = ex + M, i = 0; ex < ex_end; ex += M, ex_next += M, i++) {
+		if (!isnan(ys[i])) {
+			cls_val = ys[i];
+			var_lt.n += ws[i];
+			var_lt.sum += ws[i] * cls_val;
+			var_lt.sum2 += ws[i] * cls_val * cls_val;
+
+			/* this calculation might be numarically unstable - fix */
+			var_ge.n -= ws[i];
+			var_ge.sum -= ws[i] * cls_val;
+			var_ge.sum2 -= ws[i] * cls_val * cls_val;
+		}
+
+		if (ex[attr] == ex_next[attr] || i + 1 < minInstances)
+			continue;
+
+		/* compute mse */
+		score = var_lt.sum2 - var_lt.sum * var_lt.sum / var_lt.n;
+		score += var_ge.sum2 - var_ge.sum * var_ge.sum / var_ge.n;
+
+		score = (cls_mse - score / size_attr_cls_known) / cls_mse * (size_attr_known / size_weight);
+
+		if (score > best_score) {
+			best_score = score;
+			*best_split = (ex[attr] + ex_next[attr]) / 2.0;
+		}
+	}
+
+	printf("C %d %f\n", attr, best_score);
+	return best_score;
 }
 
 
