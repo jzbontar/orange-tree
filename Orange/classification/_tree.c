@@ -1,5 +1,7 @@
 #include <math.h>
+#include <assert.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 
 #ifndef _MSC_VER
@@ -132,6 +134,7 @@ gain_ratio_c(float *examples, float *ys, float *ws, int size, int M, int cls_val
 		score = (attr_dist[0] * entropy(dist_lt, cls_vals) + attr_dist[1] * entropy(dist_ge, cls_vals)) / size_weight;
 		score = (cls_entropy - score) / entropy(attr_dist, 2);
 
+		printf("score: %f\n", score);
 
 		if (score > best_score) {
 			best_score = score;
@@ -147,4 +150,293 @@ gain_ratio_c(float *examples, float *ys, float *ws, int size, int M, int cls_val
 	free(attr_dist);
 
 	return best_score;
+}
+
+float
+gain_ratio_d(float *examples, float *ys, float *ws, int size, int M, int cls_vals, int *attr_vals, int attr, float cls_entropy, struct Args *args)
+{
+	float *ex, *ex_end;
+	int i, cls_val, attr_val;
+	float score, size_weight, size_attr_known, size_attr_cls_known, attr_entropy, *cont, *attr_dist, *attr_dist_cls_known;
+
+	/* allocate space */
+	ASSERT(cont = (float *)calloc(cls_vals * attr_vals[attr], sizeof(float)));
+	ASSERT(attr_dist = (float *)calloc(attr_vals[attr], sizeof(float)));
+	ASSERT(attr_dist_cls_known = (float *)calloc(attr_vals[attr], sizeof(float)));
+
+	/* contingency matrix */
+	size_weight = 0.0;
+	for (ex = examples, ex_end = examples + size * M, i = 0; ex < ex_end; ex += M, i++) {
+		if (!isnan(ex[attr])) {
+			attr_val = ex[attr];
+			attr_dist[attr_val] += ws[i];
+			if (!isnan(ys[i])) {
+				cls_val = ys[i];
+				attr_dist_cls_known[attr_val] += ws[i];
+				cont[attr_val * cls_vals + cls_val] += ws[i];
+			}
+		}
+		size_weight += ws[i];
+	}
+
+	/* min examples in leaves */
+	if (!test_min_examples(attr_dist, attr_vals[attr], args)) {
+		score = -INFINITY;
+		goto finish;
+	}
+
+	size_attr_known = size_attr_cls_known = 0.0;
+	for (i = 0; i < attr_vals[attr]; i++) {
+		size_attr_known += attr_dist[i];
+		size_attr_cls_known += attr_dist_cls_known[i];
+	}
+
+	/* gain ratio */
+	score = 0.0;
+	for (i = 0; i < attr_vals[attr]; i++)
+		score += attr_dist_cls_known[i] * entropy(cont + i * cls_vals, cls_vals);
+	attr_entropy = entropy(attr_dist, attr_vals[attr]);
+
+	if (size_attr_cls_known == 0.0 || attr_entropy == 0.0 || size_weight == 0.0) {
+		score = -INFINITY;
+		goto finish;
+	}
+
+	score = (cls_entropy - score / size_attr_cls_known) / attr_entropy * ((float)size_attr_known / size_weight);
+
+	printf("D %d %f\n", attr, score);
+
+finish:
+	free(cont);
+	free(attr_dist);
+	free(attr_dist_cls_known);
+	return score;
+}
+
+
+struct SimpleTreeNode *
+make_predictor(struct SimpleTreeNode *node)
+{
+	node->type = PredictorNode;
+	node->children_size = 0;
+	return node;
+}
+
+
+struct SimpleTreeNode *
+build_tree(float *examples, float *ys, float *ws, int size, int M, int cls_vals, int *domain, int depth, struct SimpleTreeNode *parent, struct Args *args)
+{
+	int i, best_attr;
+	float cls_entropy, cls_mse, best_score, score, size_weight, best_split, split;
+	struct SimpleTreeNode *node;
+	float *ex, *ex_end;
+
+	ASSERT(node = (struct SimpleTreeNode *)malloc(sizeof *node));
+
+	if (args->type == Classification) {
+		ASSERT(node->dist = (float *)calloc(cls_vals, sizeof(float *)));
+
+		if (size == 0) {
+			assert(parent);
+			node->type = PredictorNode;
+			node->children_size = 0;
+			memcpy(node->dist, parent->dist, cls_vals * sizeof *node->dist);
+			return node;
+		}
+
+		/* class distribution */
+		size_weight = 0.0;
+		for (i = 0; i < size; i++)
+			if (!isnan(ys[i])) {
+				node->dist[(int)ys[i]] += ws[i];
+				size_weight += ws[i];
+			}
+
+		/* stopping criterion: majority class */
+		for (i = 0; i < cls_vals; i++)
+			if (node->dist[i] / size_weight >= args->maxMajority)
+				return make_predictor(node);
+
+		cls_entropy = entropy(node->dist, cls_vals);
+
+	} else {
+		float n, sum, sum2, cls_val;
+
+		assert(args->type == Regression);
+		if (size == 0) {
+			assert(parent);
+			node->type = PredictorNode;
+			node->children_size = 0;
+			node->n = parent->n;
+			node->sum = parent->sum;
+			return node;
+		}
+
+		n = sum = sum2 = 0.0;
+		for (i = 0; i < size; i++) {
+			if (!isnan(ys[i])) {
+				cls_val = ys[i];
+				n += ws[i];
+				sum += ws[i] * cls_val;
+				sum2 += ws[i] * cls_val * cls_val;
+			}
+		}
+
+		node->n = n;
+		node->sum = sum;
+		cls_mse = (sum2 - sum * sum / n) / n;
+
+		if (cls_mse < 1e-5) {
+			return make_predictor(node);
+		}
+	}
+
+	/* stopping criterion: depth exceeds limit */
+	if (depth == args->maxDepth)
+		return make_predictor(node);
+
+	/* score attributes */
+	best_score = -INFINITY;
+	for (i = 0; i < M; i++) {
+		if (!args->attr_split_so_far[i]) {
+			/* select random subset of attributes */
+			if ((double)rand() / (double)RAND_MAX < args->skipProb)
+				continue;
+
+			if (domain[i] == 0) { // INTVAR
+				/*
+				score = args->type == Classification ?
+				  gain_ratio_d(examples, size, i, cls_entropy, args) :
+				  mse_d(examples, size, i, cls_mse, args);
+				if (score > best_score) {
+					best_score = score;
+					best_attr = i;
+				}
+				*/
+				assert(0);
+			} else if (domain[i] == 1) { // FLOATVAR
+				/*
+				score = args->type == Classification ?
+				  gain_ratio_c(examples, size, i, cls_entropy, args, &split) :
+				  mse_c(examples, size, i, cls_mse, args, &split);
+				*/
+				gain_ratio_c(examples, ys, ws, size, M, cls_vals, i, cls_entropy, args, &split);
+				if (score > best_score) {
+					best_score = score;
+					best_split = split;
+					best_attr = i;
+				}
+			}
+		}
+	}
+
+#if 0
+
+	if (best_score == -INFINITY)
+		return make_predictor(node, examples, size, args);
+
+	if (args->domain->attributes->at(best_attr)->varType == TValue::INTVAR) {
+		struct Example *child_examples, *child_ex;
+		int attr_vals;
+		float size_known, *attr_dist;
+
+		/* printf("* %2d %3s %3d %f\n", depth, args->domain->attributes->at(best_attr)->get_name().c_str(), size, best_score); */
+
+		attr_vals = args->domain->attributes->at(best_attr)->noOfValues(); 
+
+		node->type = DiscreteNode;
+		node->split_attr = best_attr;
+		node->children_size = attr_vals;
+
+		ASSERT(child_examples = (struct Example *)calloc(size, sizeof *child_examples));
+		ASSERT(node->children = (SimpleTreeNode **)calloc(attr_vals, sizeof *node->children));
+		ASSERT(attr_dist = (float *)calloc(attr_vals, sizeof *attr_dist));
+
+		/* attribute distribution */
+		size_known = 0;
+		for (ex = examples, ex_end = examples + size; ex < ex_end; ex++)
+			if (!ex->example->values[best_attr].isSpecial()) {
+				attr_dist[ex->example->values[best_attr].intV] += ex->weight;
+				size_known += ex->weight;
+			}
+
+		args->attr_split_so_far[best_attr] = 1;
+
+		for (i = 0; i < attr_vals; i++) {
+			/* create a new example table */
+			for (ex = examples, ex_end = examples + size, child_ex = child_examples; ex < ex_end; ex++) {
+				if (ex->example->values[best_attr].isSpecial()) {
+					*child_ex = *ex;
+					child_ex->weight *= attr_dist[i] / size_known;
+					child_ex++;
+				} else if (ex->example->values[best_attr].intV == i) {
+					*child_ex++ = *ex;
+				}
+			}
+
+			node->children[i] = build_tree(child_examples, child_ex - child_examples, depth + 1, node, args);
+		}
+					
+		args->attr_split_so_far[best_attr] = 0;
+
+		free(attr_dist);
+		free(child_examples);
+	} else {
+		struct Example *examples_lt, *examples_ge, *ex_lt, *ex_ge;
+		float size_lt, size_ge;
+
+		/* printf("* %2d %3s %3d %f %f\n", depth, args->domain->attributes->at(best_attr)->get_name().c_str(), size, best_split, best_score); */
+
+		assert(args->domain->attributes->at(best_attr)->varType == TValue::FLOATVAR);
+
+		ASSERT(examples_lt = (struct Example *)calloc(size, sizeof *examples));
+		ASSERT(examples_ge = (struct Example *)calloc(size, sizeof *examples));
+
+		size_lt = size_ge = 0.0;
+		for (ex = examples, ex_end = examples + size; ex < ex_end; ex++)
+			if (!ex->example->values[best_attr].isSpecial())
+				if (ex->example->values[best_attr].floatV < best_split)
+					size_lt += ex->weight;
+				else
+					size_ge += ex->weight;
+
+		for (ex = examples, ex_end = examples + size, ex_lt = examples_lt, ex_ge = examples_ge; ex < ex_end; ex++)
+			if (ex->example->values[best_attr].isSpecial()) {
+				*ex_lt = *ex;
+				*ex_ge = *ex;
+				ex_lt->weight *= size_lt / (size_lt + size_ge);
+				ex_ge->weight *= size_ge / (size_lt + size_ge);
+				ex_lt++;
+				ex_ge++;
+			} else if (ex->example->values[best_attr].floatV < best_split) {
+				*ex_lt++ = *ex;
+			} else {
+				*ex_ge++ = *ex;
+			}
+
+		/*
+		 * Check there was an actual reduction of size in the the two subsets.
+		 * This test fails when all best_attr's (the only attr) values  are
+		 * the same (and equal best_split) so the data is split in 0 | n size
+		 * subsets and recursing would lead to an infinite recursion.
+		 */
+		if ((ex_lt - examples_lt) < size && (ex_ge - examples_ge) < size) {
+			node->type = ContinuousNode;
+			node->split_attr = best_attr;
+			node->split = best_split;
+			node->children_size = 2;
+			ASSERT(node->children = (SimpleTreeNode **)calloc(2, sizeof *node->children));
+
+			node->children[0] = build_tree(examples_lt, ex_lt - examples_lt, depth + 1, node, args);
+			node->children[1] = build_tree(examples_ge, ex_ge - examples_ge, depth + 1, node, args);
+		} else {
+			node = make_predictor(node, examples, size, args);
+		}
+
+		free(examples_lt);
+		free(examples_ge);
+	}
+
+#endif
+	return node;
 }

@@ -1,74 +1,56 @@
 import os
 import ctypes as ct
+import numpy as np
 
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tree.so'))
 
+class ARGS(ct.Structure):
+    _fields_ = [
+        ('minInstances', ct.c_int),
+        ('maxDepth', ct.c_int),
+        ('maxMajority', ct.c_float),
+        ('skipProb', ct.c_float),
+        ('type', ct.c_int),
+        ('attr_split_so_far', ct.POINTER(ct.c_int))
+    ]
 
+np.random.seed(42)
+# ys = np.random.randint(0, 2, X.shape[0]).astype(np.float32)
+# ws = np.ones(X.shape[0]).astype(np.float32)
+# X = np.random.normal(0, 1, (20, 3)).astype(np.float32)
+# size = X.shape[0]
+# M = X.shape[1]
+# cls_vals = 2
+# attr = 0
+# cls_entropy = ct.c_float(0)
+# args = ARGS(minInstances=1)
+# best_split = ct.c_float(0)
+# 
+# _tree.gain_ratio_c.restype = ct.c_float
+# r = _tree.gain_ratio_c(
+#     X.ctypes.data_as(ct.c_void_p), 
+#     ys.ctypes.data_as(ct.c_void_p), 
+#     ws.ctypes.data_as(ct.c_void_p), 
+#     size, M, cls_vals, attr, cls_entropy, 
+#     ct.byref(args), ct.byref(best_split))
 
+# n_ratio_d(float *examples, float *ys, float *ws, int size, int M, int cls_vals, int *attr_vals, int attr, float cls_entropy, struct Args *args)
 
-# from Orange.classification import SklLearner, SklModel
-# import sklearn.tree as skl_tree
-# 
-# import numpy as np
-# from collections import Counter
-# 
-# __all__ = ["ClassificationTreeLearner"]
-# 
-# 
-# class ClassificationTreeLearner(SklLearner):
-#     __wraps__ = skl_tree.DecisionTreeClassifier
-# 
-#     def __init__(self, criterion="gini", splitter="best", max_depth=None,
-#                  min_samples_split=2, min_samples_leaf=1,
-#                  max_features=None,
-#                  random_state=None, max_leaf_nodes=None,
-#                  preprocessors=None):
-#         super().__init__(preprocessors=preprocessors)
-#         self.params = vars()
-#         self.supports_weights = True
-# 
-#     def distribute_items(self, X, Y, t, id, items):
-#         """Store example ids into leaves and compute class distributions."""
-#         if t.children_left[id] == skl_tree._tree.TREE_LEAF:
-#             self.items[id] = items
-#             self.distr[id] = Counter(Y[items].flatten())
-#         else:
-#             x = X[items, :]
-#             left = items[np.where(x[:, t.feature[id]] <= t.threshold[id])]
-#             right = items[np.where(x[:, t.feature[id]] > t.threshold[id])]
-#             self.distribute_items(X, Y, t, t.children_left[id], left)
-#             self.distribute_items(X, Y, t, t.children_right[id], right)
-#             self.distr[id] = self.distr[t.children_left[id]] + self.distr[t.children_right[id]]
-# 
-#     def fit(self, X, Y, W):
-#         clf = skl_tree.DecisionTreeClassifier(**self.params)
-#         if W is None:
-#             clf = clf.fit(X, Y)
-#         else:
-#             clf = clf.fit(X, Y, sample_weight=W.reshape(-1))
-#         t = clf.tree_
-#         self.items = [None]*t.node_count
-#         self.distr = [None]*t.node_count
-#         self.distribute_items(X, Y, t, 0, np.arange(len(X)))
-#         return ClassificationTreeClassifier(clf, self.items, self.distr)
-# 
-# 
-# class ClassificationTreeClassifier(SklModel):
-# 
-#     def __init__(self, clf, items, distr):
-#         super().__init__(clf)
-#         self.items = items
-#         self.distr = distr
-# 
-#     def get_distr(self, id):
-#         return self.distr[id]
-# 
-#     def get_items(self, id):
-#         """Return ids of examples belonging to node id."""
-#         t = self.clf.tree_
-#         if t.children_left[id] == skl_tree._tree.TREE_LEAF:
-#             return self.items[id]
-#         else:
-#             left = self.get_items(t.children_left[id])
-#             right = self.get_items(t.children_right[id])
-#         return np.hstack((left, right))
+N, M = 20, 3
+X = np.random.randint(0, 2, (N, M)).astype(np.float32)
+ys = np.random.randint(0, 2, N).astype(np.float32)
+ws = np.ones(N).astype(np.float32)
+cls_vals = 2
+attr_vals = (np.max(X, axis=0) + 1).astype(np.int)
+attr = 0
+cls_entropy = ct.c_float(0)
+args = ARGS(minInstances=1)
+
+_tree.gain_ratio_d.restype = ct.c_float
+r = _tree.gain_ratio_d(
+    X.ctypes.data_as(ct.c_void_p), 
+    ys.ctypes.data_as(ct.c_void_p), 
+    ws.ctypes.data_as(ct.c_void_p), 
+    N, M, cls_vals, 
+    attr_vals.ctypes.data_as(ct.c_void_p),
+    attr, cls_entropy, ct.byref(args))
