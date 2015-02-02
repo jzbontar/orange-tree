@@ -288,6 +288,60 @@ mse_c(float *examples, float *ys, float *ws, int size, int M, int attr, float cl
 	return best_score;
 }
 
+float
+mse_d(float *examples, float *ys, float *ws, int size, int M, int cls_vals, int *attr_vals, int attr, float cls_mse, struct Args *args)
+{
+	int i, attr_val;
+	float *attr_dist, d, score, cls_val, size_attr_cls_known, size_attr_known, size_weight;
+	float *ex, *ex_end;
+
+	struct Variance {
+		float n, sum, sum2;
+	} *variances, *v, *v_end;
+
+	ASSERT(variances = (struct Variance *)calloc(attr_vals[attr], sizeof *variances));
+	ASSERT(attr_dist = (float *)calloc(attr_vals[attr], sizeof *attr_dist));
+
+	size_weight = size_attr_cls_known = size_attr_known = 0.0;
+	for (ex = examples, ex_end = examples + size * M, i = 0; ex < ex_end; ex += M, i++) {
+		if (!isnan(ex[attr])) {
+			attr_dist[(int)ex[attr]] += ws[i];
+			size_attr_known += ws[i];
+
+			if (!isnan(ys[i])) {
+					cls_val = ys[i];
+					v = variances + (int)ex[attr];
+					v->n += ws[i];
+					v->sum += ws[i] * cls_val;
+					v->sum2 += ws[i] * cls_val * cls_val;
+					size_attr_cls_known += ws[i];
+			}
+		}
+		size_weight += ws[i];
+	}
+
+	/* minimum examples in leaves */
+	if (!test_min_examples(attr_dist, attr_vals[attr], args)) {
+		score = -INFINITY;
+		goto finish;
+	}
+
+	score = 0.0;
+	for (v = variances, v_end = variances + attr_vals[attr]; v < v_end; v++)
+		if (v->n > 0.0)
+			score += v->sum2 - v->sum * v->sum / v->n;
+	score = (cls_mse - score / size_attr_cls_known) / cls_mse * (size_attr_known / size_weight);
+
+	if (size_attr_cls_known <= 0.0 || cls_mse <= 0.0 || size_weight <= 0.0)
+		score = 0.0;
+
+	printf("D %d %f\n", attr, score);
+finish:
+	free(attr_dist);
+	free(variances);
+
+	return score;
+}
 
 struct SimpleTreeNode *
 make_predictor(struct SimpleTreeNode *node)

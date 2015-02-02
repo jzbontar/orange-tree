@@ -53,21 +53,40 @@ np.random.seed(42)
 #     attr_vals.ctypes.data_as(ct.c_void_p),
 #     attr, cls_entropy, ct.byref(args))
 
+# N, M = 20, 3
+# X = np.random.normal(0, 1, (N, M)).astype(np.float32)
+# ys = np.random.normal(0, 1, N).astype(np.float32)
+# ws = np.ones(N).astype(np.float32)
+# cls_vals = 2
+# attr_vals = (np.max(X, axis=0) + 1).astype(np.int)
+# attr = 0
+# cls_mse = ct.c_float(1)
+# args = ARGS(minInstances=1)
+# best_split = ct.c_float(0)
+# 
+# _tree.mse_c.restype = ct.c_float
+# r = _tree.mse_c(
+#     X.ctypes.data_as(ct.c_void_p), 
+#     ys.ctypes.data_as(ct.c_void_p), 
+#     ws.ctypes.data_as(ct.c_void_p), 
+#     N, M, attr, cls_mse, 
+#     ct.byref(args), ct.byref(best_split))
+
 N, M = 20, 3
-X = np.random.normal(0, 1, (N, M)).astype(np.float32)
-ys = np.random.normal(0, 1, N).astype(np.float32)
+X = np.random.randint(0, 2, (N, M)).astype(np.float32)
+ys = np.random.randint(0, 2, N).astype(np.float32)
 ws = np.ones(N).astype(np.float32)
 cls_vals = 2
 attr_vals = (np.max(X, axis=0) + 1).astype(np.int)
 attr = 0
 cls_mse = ct.c_float(1)
 args = ARGS(minInstances=1)
-best_split = ct.c_float(0)
 
-_tree.mse_c.restype = ct.c_float
-r = _tree.mse_c(
+_tree.mse_d.restype = ct.c_float
+r = _tree.mse_d(
     X.ctypes.data_as(ct.c_void_p), 
     ys.ctypes.data_as(ct.c_void_p), 
     ws.ctypes.data_as(ct.c_void_p), 
-    N, M, attr, cls_mse, 
-    ct.byref(args), ct.byref(best_split))
+    N, M, cls_vals, 
+    attr_vals.ctypes.data_as(ct.c_void_p),
+    attr, cls_mse, ct.byref(args))
