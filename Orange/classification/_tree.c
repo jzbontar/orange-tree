@@ -223,14 +223,12 @@ float
 mse_c(struct Example *examples, int size, int attr, float cls_mse, struct Args *args, float *best_split)
 {
 	struct Example *ex, *ex_end, *ex_next;
-	int i, cls_vals, minInstances, size_known;
-	float size_attr_known, size_weight, cls_val, cls_score, best_score, size_attr_cls_known, score;
+	int i, minInstances, size_known;
+	float size_attr_known, size_weight, cls_val, best_score, size_attr_cls_known, score;
 
 	struct Variance {
 		double n, sum, sum2;
 	} var_lt = {0.0, 0.0, 0.0}, var_ge = {0.0, 0.0, 0.0};
-
-	cls_vals = args->cls_vals;
 
 	/* minInstances should be at least 1, otherwise there is no point in splitting */
 	minInstances = args->minInstances < 1 ? 1 : args->minInstances;
@@ -299,8 +297,8 @@ mse_c(struct Example *examples, int size, int attr, float cls_mse, struct Args *
 float
 mse_d(struct Example *examples, int size, int attr, float cls_mse, struct Args *args)
 {
-	int i, attr_vals, attr_val;
-	float *attr_dist, d, score, cls_val, size_attr_cls_known, size_attr_known, size_weight;
+	int attr_vals;
+	float *attr_dist, score, cls_val, size_attr_cls_known, size_attr_known, size_weight;
 	struct Example *ex, *ex_end;
 
 	struct Variance {
@@ -524,11 +522,12 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 
 		size_lt = size_ge = 0.0;
 		for (ex = examples, ex_end = examples + size; ex < ex_end; ex++)
-			if (!isnan(ex->x[best_attr]))
+			if (!isnan(ex->x[best_attr])) {
 				if (ex->x[best_attr] < best_split)
 					size_lt += ex->weight;
 				else
 					size_ge += ex->weight;
+			}
 
 		for (ex = examples, ex_end = examples + size, ex_lt = examples_lt, ex_ge = examples_ge; ex < ex_end; ex++)
 			if (isnan(ex->x[best_attr])) {
@@ -588,46 +587,98 @@ save_tree(struct SimpleTreeNode *node, struct Args *args)
 			printf("%d ", (int)node->dist[i]);
 	} else {
 		assert(args->type == Regression);
-		printf("%d %d ", node->n, node->sum);
+		printf("%f %f ", node->n, node->sum);
 	}
 	printf("} ");
 }
 
 struct SimpleTreeNode *
-build_tree(double *x, double *y, double *w, int size, int minInstances, double maxMajority, int maxDepth, double skipProb, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain)
+build_tree(double *x, double *y, double *w, int size, struct Args *args)
 {
 	struct Example *examples;
 	struct SimpleTreeNode *tree;
-	struct Args args;
 	int i;
-
-	/* attr_vals and domain are int32 */
-	assert(sizeof(int) == 4);
 
 	/* create a tabel with pointers to examples */
 	ASSERT(examples = (struct Example *)calloc(size, sizeof *examples));
 	for (i = 0; i < size; i++) {
-		examples[i].x = x + i * num_attrs;
+		examples[i].x = x + i * args->num_attrs;
 		examples[i].y = y[i];
 		examples[i].weight = w[i];
 	}
-	args.minInstances = minInstances;
-	args.maxMajority = maxMajority;
-	args.maxDepth = maxDepth;
-	args.skipProb = skipProb;
-	args.type = type;
-	ASSERT(args.attr_split_so_far = (int *)calloc(num_attrs, sizeof(int)));
-	args.num_attrs = num_attrs;
-	args.cls_vals = cls_vals;
-	args.attr_vals = attr_vals;
-	args.domain = domain;
-
-	tree = build_tree_(examples, size, 0, NULL, &args);
-
+	ASSERT(args->attr_split_so_far = (int *)calloc(args->num_attrs, sizeof(int)));
+	tree = build_tree_(examples, size, 0, NULL, args);
 	free(examples);
-	free(args.attr_split_so_far);
-
-	/* save_tree(tree, &args); */
-
+	free(args->attr_split_so_far);
 	return tree;
 }
+
+void
+destroy_tree(struct SimpleTreeNode *node, int type)
+{
+    int i;
+
+    if (node->type != PredictorNode) {
+        for (i = 0; i < node->children_size; i++)
+            destroy_tree(node->children[i], type);
+        free(node->children);
+    }
+    if (type == Classification)
+        free(node->dist);
+    free(node);
+}
+
+void
+predict_one_classification(double *x, double *p, struct SimpleTreeNode *node, struct Args *args)
+{
+    int i;
+
+    while (node->type != PredictorNode) {
+		if (isnan(x[node->split_attr])) {
+            for (i = 0; i < node->children_size; i++) {
+                predict_one_classification(x, p, node->children[i], args);
+            }
+			for (i = 0; i < args->cls_vals; i++) {
+				p[i] /= node->children_size;
+			}
+        } else if (node->type == DiscreteNode) {
+            node = node->children[(int)x[node->split_attr]];
+        } else {
+            assert(node->type == ContinuousNode);
+            node = node->children[x[node->split_attr] >= node->split];
+        }
+	}
+	for (i = 0; i < args->cls_vals; i++) {
+		p[i] += node->dist[i];
+	}
+}
+
+/*
+void
+predict_regression(const TExample &ex, struct SimpleTreeNode *node, float *sum, float *n)
+{
+    int i;
+    float local_sum, local_n;
+
+    while (node->type != PredictorNode) {
+        if (ex.values[node->split_attr].isSpecial()) {
+            *sum = *n = 0;
+            for (i = 0; i < node->children_size; i++) {
+                predict_regression(ex, node->children[i], &local_sum, &local_n);
+                *sum += local_sum;
+                *n += local_n;
+            }
+            return;
+        } else if (node->type == DiscreteNode) {
+            assert(ex.values[node->split_attr].intV < node->children_size);
+            node = node->children[ex.values[node->split_attr].intV];
+        } else {
+            assert(node->type == ContinuousNode);
+            node = node->children[ex.values[node->split_attr].floatV > node->split];
+        }
+    }
+
+    *sum = node->sum;
+    *n = node->n;
+}
+*/

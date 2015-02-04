@@ -4,6 +4,20 @@ import numpy as np
 
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tree.so'))
 
+class ARGS(ct.Structure):
+    _fields_ = [
+        ('minInstances', ct.c_int),
+        ('maxDepth', ct.c_int),
+        ('maxMajority', ct.c_float),
+        ('skipProb', ct.c_float),
+        ('type', ct.c_int),
+        ('attr_split_so_far', ct.POINTER(ct.c_int)),
+        ('num_attrs', ct.c_int),
+        ('cls_vals', ct.c_int),
+        ('attr_vals', ct.POINTER(ct.c_int)),
+        ('domain', ct.POINTER(ct.c_int)),
+    ]
+
 class SIMPLE_TREE_NODE(ct.Structure):
     pass
 
@@ -34,16 +48,21 @@ Xf = np.random.normal(0, 2, (N, Mf)).astype(np.float64)
 X = np.hstack((Xi, Xf))
 y = np.random.normal(0, 2, N).astype(np.float64)
 w = np.ones(N).astype(np.float64)
-minInstances = 2
-maxMajority = ct.c_double(1.0)
-maxDepth = 1024
-skipProb = ct.c_double(0.0)
-type = Regression
-cls_vals = 2
 attr_vals_i = (np.max(Xi, axis=0) + 1)
 attr_vals_f = (np.zeros(Mf))
 attr_vals = np.concatenate((attr_vals_i, attr_vals_f)).astype(np.int32)
 domain = np.concatenate((np.zeros(Mi), np.ones(Mf))).astype(np.int32)
+
+args = ARGS()
+args.minInstances = 2
+args.maxMajority = 1.0
+args.maxDepth = 1024
+args.skipProb = 0.0
+args.type = Regression
+args.num_attrs = Mi + Mf
+args.cls_vals = 2
+args.attr_vals = attr_vals.ctypes.data_as(ct.POINTER(ct.c_int))
+args.domain = domain.ctypes.data_as(ct.POINTER(ct.c_int))
 
 X[np.random.random(X.shape) < 0.1] = np.nan
 y[np.random.random(y.shape) < 0.1] = np.nan
@@ -61,6 +80,4 @@ r = _tree.build_tree(
      X.ctypes.data_as(ct.c_void_p),
      y.ctypes.data_as(ct.c_void_p),
      w.ctypes.data_as(ct.c_void_p),
-     N, minInstances, maxMajority, maxDepth, skipProb, type, Mi + Mf, cls_vals,
-     attr_vals.ctypes.data_as(ct.c_void_p),
-     domain.ctypes.data_as(ct.c_void_p))
+     N, ct.byref(args))
