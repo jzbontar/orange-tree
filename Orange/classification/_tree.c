@@ -629,18 +629,16 @@ destroy_tree(struct SimpleTreeNode *node, int type)
 }
 
 void
-predict_one_classification(double *x, double *p, struct SimpleTreeNode *node, struct Args *args)
+predict_classification_(double *x, double *p, struct SimpleTreeNode *node, struct Args *args)
 {
     int i;
 
     while (node->type != PredictorNode) {
 		if (isnan(x[node->split_attr])) {
             for (i = 0; i < node->children_size; i++) {
-                predict_one_classification(x, p, node->children[i], args);
+                predict_classification_(x, p, node->children[i], args);
             }
-			for (i = 0; i < args->cls_vals; i++) {
-				p[i] /= node->children_size;
-			}
+			return;
         } else if (node->type == DiscreteNode) {
             node = node->children[(int)x[node->split_attr]];
         } else {
@@ -650,6 +648,26 @@ predict_one_classification(double *x, double *p, struct SimpleTreeNode *node, st
 	}
 	for (i = 0; i < args->cls_vals; i++) {
 		p[i] += node->dist[i];
+	}
+}
+
+void
+predict_classification(double *x, double *p, int size, struct SimpleTreeNode *node, struct Args *args)
+{
+	int i, j;
+	double *xx, *pp;
+
+	for (i = 0; i < size; i++) {
+		xx = x + i * args->num_attrs;
+		pp = p + i * args->cls_vals;
+		predict_classification_(xx, pp, node, args);
+		double sum = 0;
+		for (j = 0; j < args->cls_vals; j++) {
+			sum += pp[j];
+		}
+		for (j = 0; j < args->cls_vals; j++) {
+			pp[j] /= sum;
+		}
 	}
 }
 

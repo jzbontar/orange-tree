@@ -46,7 +46,7 @@ N, Mi, Mf = 50, 3, 3
 Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
 Xf = np.random.normal(0, 2, (N, Mf)).astype(np.float64)
 X = np.hstack((Xi, Xf))
-y = np.random.normal(0, 2, N).astype(np.float64)
+y = np.random.randint(0, 2, N).astype(np.float64)
 w = np.ones(N).astype(np.float64)
 attr_vals_i = (np.max(Xi, axis=0) + 1)
 attr_vals_f = (np.zeros(Mf))
@@ -58,26 +58,35 @@ args.minInstances = 2
 args.maxMajority = 1.0
 args.maxDepth = 1024
 args.skipProb = 0.0
-args.type = Regression
+args.type = Classification
 args.num_attrs = Mi + Mf
 args.cls_vals = 2
 args.attr_vals = attr_vals.ctypes.data_as(ct.POINTER(ct.c_int))
 args.domain = domain.ctypes.data_as(ct.POINTER(ct.c_int))
 
 X[np.random.random(X.shape) < 0.1] = np.nan
-y[np.random.random(y.shape) < 0.1] = np.nan
+# y[np.random.random(y.shape) < 0.1] = np.nan
 
 # create .tab
 f = open('/home/jure/tmp/foo.tab', 'w')
 f.write('\t'.join('a{}'.format(i) for i in range(Mi + Mf)) + '\tcls\n')
-f.write('d\t' * Mi + 'c\t' * Mf + '{}\n'.format('d' if type == Classification else 'c'))
+f.write('d\t' * Mi + 'c\t' * Mf + '{}\n'.format('d' if args.type == Classification else 'c'))
 f.write('\t' * (Mi + Mf) + 'class\n')
 for i in range(N):
     f.write('\t'.join('{}'.format('?' if np.isnan(X[i,j]) else X[i,j]) for j in range(Mi + Mf)) + '\t{}\n'.format('?' if np.isnan(y[i]) else y[i]))
+f.close()
 
 _tree.build_tree.restype = ct.POINTER(SIMPLE_TREE_NODE)
-r = _tree.build_tree(
-     X.ctypes.data_as(ct.c_void_p),
-     y.ctypes.data_as(ct.c_void_p),
-     w.ctypes.data_as(ct.c_void_p),
-     N, ct.byref(args))
+node = _tree.build_tree(
+    X.ctypes.data_as(ct.c_void_p),
+    y.ctypes.data_as(ct.c_void_p),
+    w.ctypes.data_as(ct.c_void_p),
+    N, ct.byref(args))
+
+p = np.zeros((N, args.cls_vals))
+_tree.predict_classification(
+    X.ctypes.data_as(ct.c_void_p),
+    p.ctypes.data_as(ct.c_void_p),
+    N, node, ct.byref(args))
+
+print(p)
