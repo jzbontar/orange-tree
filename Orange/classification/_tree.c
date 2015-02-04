@@ -629,14 +629,14 @@ destroy_tree(struct SimpleTreeNode *node, int type)
 }
 
 void
-predict_classification_(double *x, double *p, struct SimpleTreeNode *node, struct Args *args)
+predict_classification_(double *x, struct SimpleTreeNode *node, struct Args *args, double *p)
 {
     int i;
 
     while (node->type != PredictorNode) {
 		if (isnan(x[node->split_attr])) {
             for (i = 0; i < node->children_size; i++) {
-                predict_classification_(x, p, node->children[i], args);
+                predict_classification_(x, node->children[i], args, p);
             }
 			return;
         } else if (node->type == DiscreteNode) {
@@ -652,7 +652,7 @@ predict_classification_(double *x, double *p, struct SimpleTreeNode *node, struc
 }
 
 void
-predict_classification(double *x, double *p, int size, struct SimpleTreeNode *node, struct Args *args)
+predict_classification(double *x, int size, struct SimpleTreeNode *node, struct Args *args, double *p)
 {
 	int i, j;
 	double *xx, *pp;
@@ -660,7 +660,7 @@ predict_classification(double *x, double *p, int size, struct SimpleTreeNode *no
 	for (i = 0; i < size; i++) {
 		xx = x + i * args->num_attrs;
 		pp = p + i * args->cls_vals;
-		predict_classification_(xx, pp, node, args);
+		predict_classification_(xx, node, args, pp);
 		double sum = 0;
 		for (j = 0; j < args->cls_vals; j++) {
 			sum += pp[j];
@@ -671,32 +671,39 @@ predict_classification(double *x, double *p, int size, struct SimpleTreeNode *no
 	}
 }
 
-/*
 void
-predict_regression(const TExample &ex, struct SimpleTreeNode *node, float *sum, float *n)
+predict_regression_(double *x, struct SimpleTreeNode *node, struct Args *args, double *sum, double *n)
 {
     int i;
-    float local_sum, local_n;
 
     while (node->type != PredictorNode) {
-        if (ex.values[node->split_attr].isSpecial()) {
-            *sum = *n = 0;
+		if (isnan(x[node->split_attr])) {
             for (i = 0; i < node->children_size; i++) {
-                predict_regression(ex, node->children[i], &local_sum, &local_n);
-                *sum += local_sum;
-                *n += local_n;
+                predict_regression_(x, node->children[i], args, sum, n);
             }
             return;
         } else if (node->type == DiscreteNode) {
-            assert(ex.values[node->split_attr].intV < node->children_size);
-            node = node->children[ex.values[node->split_attr].intV];
+            assert(x[node->split_attr] < node->children_size);
+            node = node->children[(int)x[node->split_attr]];
         } else {
             assert(node->type == ContinuousNode);
-            node = node->children[ex.values[node->split_attr].floatV > node->split];
+            node = node->children[x[node->split_attr] > node->split];
         }
     }
 
-    *sum = node->sum;
-    *n = node->n;
+    *sum += node->sum;
+    *n += node->n;
 }
-*/
+
+void
+predict_regression(double *x, int size, struct SimpleTreeNode *node, struct Args *args, double *p)
+{
+	int i;
+	double sum, n;
+
+	for (i = 0; i < size; i++) {
+		sum = n = 0;
+		predict_regression_(x + i * args->num_attrs, node, args, &sum, &n);
+		p[i] = sum / n;
+	}
+}
