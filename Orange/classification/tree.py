@@ -32,6 +32,30 @@ SIMPLE_TREE_NODE._fields_ = [
         ('sum', ct.c_float),
     ]
 
+class SimpleTree:
+    def __init__(self):
+        self.cls_vals = 2
+        self.type = Regression
+
+    def dumps_tree(self, node):
+        n = node.contents
+        s = []
+
+        s.append('{{ {} {} '.format(n.type, n.children_size))
+        if n.type != PredictorNode:
+            s.append('{} {} '.format(n.split_attr, n.split))
+
+        for i in range(n.children_size):
+            s.append(self.dumps_tree(n.children[i])) 
+
+        if self.type == Classification:
+            for i in range(self.cls_vals):
+                s.append('{} '.format(n.dist[i]))
+        else:
+            s.append('{} {} '.format(n.n, n.sum))
+        s.append('} ')
+        return ''.join(s)
+
 DiscreteNode = 0
 ContinuousNode = 1
 PredictorNode = 2
@@ -84,11 +108,12 @@ node = _tree.build_tree(
     w.ctypes.data_as(ct.c_void_p),
     N, ct.byref(args))
 
-p = np.zeros(N)
-_tree.predict_regression(
-    X.ctypes.data_as(ct.c_void_p),
-    N, node, ct.byref(args),
-    p.ctypes.data_as(ct.c_void_p))
+t = SimpleTree()
+print(t.dumps_tree(node))
 
-for pp in p:
-    print(pp)
+# p = np.zeros(N)
+# _tree.predict_regression(
+#     X.ctypes.data_as(ct.c_void_p),
+#     N, node, ct.byref(args),
+#     p.ctypes.data_as(ct.c_void_p))
+# 

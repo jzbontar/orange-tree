@@ -569,29 +569,6 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 	return node;
 }
 
-void
-save_tree(struct SimpleTreeNode *node, struct Args *args)
-{
-	int i;
-
-	printf("{ %d %d ", node->type, node->children_size);
-
-	if (node->type != PredictorNode)
-		printf("%d %f ", node->split_attr, node->split);
-
-	for (i = 0; i < node->children_size; i++)
-		save_tree(node->children[i], args);
-
-	if (args->type == Classification) {
-		for (i = 0; i < args->cls_vals; i++)
-			printf("%d ", (int)node->dist[i]);
-	} else {
-		assert(args->type == Regression);
-		printf("%f %f ", node->n, node->sum);
-	}
-	printf("} ");
-}
-
 struct SimpleTreeNode *
 build_tree(double *x, double *y, double *w, int size, struct Args *args)
 {
@@ -706,4 +683,27 @@ predict_regression(double *x, int size, struct SimpleTreeNode *node, struct Args
 		predict_regression_(x + i * args->num_attrs, node, args, &sum, &n);
 		p[i] = sum / n;
 	}
+}
+
+void
+save_tree_(struct SimpleTreeNode *node, struct Args *args, FILE *stream)
+{
+	int i;
+
+	fprintf(stream, "{ %d %d ", node->type, node->children_size);
+
+	if (node->type != PredictorNode)
+		fprintf(stream, "%d %f ", node->split_attr, node->split);
+
+	for (i = 0; i < node->children_size; i++)
+		save_tree_(node->children[i], args);
+
+	if (args->type == Classification) {
+		for (i = 0; i < args->cls_vals; i++)
+			fprintf(stream, "%d ", (int)node->dist[i]);
+	} else {
+		assert(args->type == Regression);
+		fprintf(stream, "%f %f ", node->n, node->sum);
+	}
+	fprintf(stream, "} ");
 }
