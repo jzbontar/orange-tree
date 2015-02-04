@@ -32,29 +32,32 @@ SIMPLE_TREE_NODE._fields_ = [
         ('sum', ct.c_float),
     ]
 
+class SimpleTreeNode:
+    pass
+
 class SimpleTree:
     def __init__(self):
         self.cls_vals = 2
         self.type = Regression
 
-    def dumps_tree(self, node):
+    def __to_python(self, node):
         n = node.contents
-        s = []
-
-        s.append('{{ {} {} '.format(n.type, n.children_size))
-        if n.type != PredictorNode:
-            s.append('{} {} '.format(n.split_attr, n.split))
-
-        for i in range(n.children_size):
-            s.append(self.dumps_tree(n.children[i])) 
-
+        py_node = SimpleTreeNode()
+        py_node.type = n.type
+        py_node.children_size = n.children_size
+        py_node.split_attr = n.split_attr
+        py_node.split = n.split
+        py_node.children = [self.__to_python(n.children[i]) for i in range(n.children_size)]
         if self.type == Classification:
-            for i in range(self.cls_vals):
-                s.append('{} '.format(n.dist[i]))
+            py_node.dist = [n.dist[i] for i in range(self.cls_vals)]
         else:
-            s.append('{} {} '.format(n.n, n.sum))
-        s.append('} ')
-        return ''.join(s)
+            py_node.n = n.n
+            py_node.sum = n.sum
+
+    def __from_python(self, py_node):
+        pass
+        
+        
 
 DiscreteNode = 0
 ContinuousNode = 1
@@ -70,8 +73,8 @@ N, Mi, Mf = 50, 3, 3
 Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
 Xf = np.random.normal(0, 2, (N, Mf)).astype(np.float64)
 X = np.hstack((Xi, Xf))
-# y = np.random.randint(0, 2, N).astype(np.float64)
-y = np.random.normal(0, 2, N).astype(np.float64)
+y = np.random.randint(0, 2, N).astype(np.float64)
+# y = np.random.normal(0, 2, N).astype(np.float64)
 w = np.ones(N).astype(np.float64)
 attr_vals_i = (np.max(Xi, axis=0) + 1)
 attr_vals_f = (np.zeros(Mf))
@@ -83,14 +86,14 @@ args.minInstances = 2
 args.maxMajority = 1.0
 args.maxDepth = 1024
 args.skipProb = 0.0
-args.type = Regression
+args.type = Classification
 args.num_attrs = Mi + Mf
 args.cls_vals = 2
 args.attr_vals = attr_vals.ctypes.data_as(ct.POINTER(ct.c_int))
 args.domain = domain.ctypes.data_as(ct.POINTER(ct.c_int))
 
-X[np.random.random(X.shape) < 0.1] = np.nan
-y[np.random.random(y.shape) < 0.1] = np.nan
+# X[np.random.random(X.shape) < 0.1] = np.nan
+# y[np.random.random(y.shape) < 0.1] = np.nan
 
 # create .tab
 f = open('/home/jure/tmp/foo.tab', 'w')
@@ -109,7 +112,7 @@ node = _tree.build_tree(
     N, ct.byref(args))
 
 t = SimpleTree()
-print(t.dumps_tree(node))
+print(t._SimpleTree__to_python(node))
 
 # p = np.zeros(N)
 # _tree.predict_regression(
