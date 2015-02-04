@@ -512,59 +512,59 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 		free(attr_dist);
 		free(child_examples);
 	} else {
-//		struct Example *examples_lt, *examples_ge, *ex_lt, *ex_ge;
-//		float size_lt, size_ge;
-//
-//		/* printf("* %2d %3s %3d %f %f\n", depth, args->domain->attributes->at(best_attr)->get_name().c_str(), size, best_split, best_score); */
-//
-//		assert(args->domain->attributes->at(best_attr)->varType == TValue::FLOATVAR);
-//
-//		ASSERT(examples_lt = (struct Example *)calloc(size, sizeof *examples));
-//		ASSERT(examples_ge = (struct Example *)calloc(size, sizeof *examples));
-//
-//		size_lt = size_ge = 0.0;
-//		for (ex = examples, ex_end = examples + size; ex < ex_end; ex++)
-//			if (!ex->example->values[best_attr].isSpecial())
-//				if (ex->example->values[best_attr].floatV < best_split)
-//					size_lt += ex->weight;
-//				else
-//					size_ge += ex->weight;
-//
-//		for (ex = examples, ex_end = examples + size, ex_lt = examples_lt, ex_ge = examples_ge; ex < ex_end; ex++)
-//			if (ex->example->values[best_attr].isSpecial()) {
-//				*ex_lt = *ex;
-//				*ex_ge = *ex;
-//				ex_lt->weight *= size_lt / (size_lt + size_ge);
-//				ex_ge->weight *= size_ge / (size_lt + size_ge);
-//				ex_lt++;
-//				ex_ge++;
-//			} else if (ex->example->values[best_attr].floatV < best_split) {
-//				*ex_lt++ = *ex;
-//			} else {
-//				*ex_ge++ = *ex;
-//			}
-//
-//		/*
-//		 * Check there was an actual reduction of size in the the two subsets.
-//		 * This test fails when all best_attr's (the only attr) values  are
-//		 * the same (and equal best_split) so the data is split in 0 | n size
-//		 * subsets and recursing would lead to an infinite recursion.
-//		 */
-//		if ((ex_lt - examples_lt) < size && (ex_ge - examples_ge) < size) {
-//			node->type = ContinuousNode;
-//			node->split_attr = best_attr;
-//			node->split = best_split;
-//			node->children_size = 2;
-//			ASSERT(node->children = (struct SimpleTreeNode **)calloc(2, sizeof *node->children));
-//
-//			node->children[0] = build_tree(examples_lt, ex_lt - examples_lt, depth + 1, node, args);
-//			node->children[1] = build_tree(examples_ge, ex_ge - examples_ge, depth + 1, node, args);
-//		} else {
-//			node = make_predictor(node, examples, size, args);
-//		}
-//
-//		free(examples_lt);
-//		free(examples_ge);
+		struct Example *examples_lt, *examples_ge, *ex_lt, *ex_ge;
+		float size_lt, size_ge;
+
+		printf("* %2d %3d %3d %f %f\n", depth, best_attr, size, best_split, best_score);
+
+		assert(args->domain[best_attr] == FloatVar);
+
+		ASSERT(examples_lt = (struct Example *)calloc(size, sizeof *examples));
+		ASSERT(examples_ge = (struct Example *)calloc(size, sizeof *examples));
+
+		size_lt = size_ge = 0.0;
+		for (ex = examples, ex_end = examples + size; ex < ex_end; ex++)
+			if (!isnan(ex->x[best_attr]))
+				if (ex->x[best_attr] < best_split)
+					size_lt += ex->weight;
+				else
+					size_ge += ex->weight;
+
+		for (ex = examples, ex_end = examples + size, ex_lt = examples_lt, ex_ge = examples_ge; ex < ex_end; ex++)
+			if (isnan(ex->x[best_attr])) {
+				*ex_lt = *ex;
+				*ex_ge = *ex;
+				ex_lt->weight *= size_lt / (size_lt + size_ge);
+				ex_ge->weight *= size_ge / (size_lt + size_ge);
+				ex_lt++;
+				ex_ge++;
+			} else if (ex->x[best_attr] < best_split) {
+				*ex_lt++ = *ex;
+			} else {
+				*ex_ge++ = *ex;
+			}
+
+		/*
+		 * Check there was an actual reduction of size in the the two subsets.
+		 * This test fails when all best_attr's (the only attr) values  are
+		 * the same (and equal best_split) so the data is split in 0 | n size
+		 * subsets and recursing would lead to an infinite recursion.
+		 */
+		if ((ex_lt - examples_lt) < size && (ex_ge - examples_ge) < size) {
+			node->type = ContinuousNode;
+			node->split_attr = best_attr;
+			node->split = best_split;
+			node->children_size = 2;
+			ASSERT(node->children = (struct SimpleTreeNode **)calloc(2, sizeof *node->children));
+
+			node->children[0] = build_tree_(examples_lt, ex_lt - examples_lt, depth + 1, node, args);
+			node->children[1] = build_tree_(examples_ge, ex_ge - examples_ge, depth + 1, node, args);
+		} else {
+			node = make_predictor(node, examples, size, args);
+		}
+
+		free(examples_lt);
+		free(examples_ge);
 	}
 
 	return node;

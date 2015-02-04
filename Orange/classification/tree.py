@@ -23,11 +23,15 @@ ContinuousNode = 1
 PredictorNode = 2
 Classification = 0
 Regression = 1
+IntVar = 0
+FloatVar = 1
 
 np.random.seed(42)
 
-N, M = 60, 6
-X = np.random.randint(0, 2, (N, M)).astype(np.float64)
+N, Mi, Mf = 50, 3, 3
+Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
+Xf = np.random.normal(0, 2, (N, Mf)).astype(np.float64)
+X = np.hstack((Xi, Xf))
 y = np.random.randint(0, 2, N).astype(np.float64)
 w = np.ones(N).astype(np.float64)
 minInstances = 2
@@ -36,27 +40,27 @@ maxDepth = 1024
 skipProb = ct.c_double(0.0)
 type = Classification
 cls_vals = 2
-attr_vals = (np.max(X, axis=0) + 1).astype(np.int32)
-domain = np.zeros(M).astype(np.int32)
+attr_vals_i = (np.max(Xi, axis=0) + 1)
+attr_vals_f = (np.zeros(Mf))
+attr_vals = np.concatenate((attr_vals_i, attr_vals_f)).astype(np.int32)
+domain = np.concatenate((np.zeros(Mi), np.ones(Mf))).astype(np.int32)
 
 X[np.random.random(X.shape) < 0.1] = np.nan
 y[np.random.random(y.shape) < 0.1] = np.nan
 
 # create .tab
 f = open('/home/jure/tmp/foo.tab', 'w')
-f.write('\t'.join('a{}'.format(i) for i in range(M)) + '\tcls\n')
-f.write('d\t' * M + 'd\n')
-f.write('\t' * M + 'class\n')
+f.write('\t'.join('a{}'.format(i) for i in range(Mi + Mf)) + '\tcls\n')
+f.write('d\t' * Mi + 'c\t' * Mf + 'd\n')
+f.write('\t' * (Mi + Mf) + 'class\n')
 for i in range(N):
-    f.write('\t'.join('{}'.format('?' if np.isnan(X[i,j]) else int(X[i,j])) for j in range(M)) + '\t{}\n'.format('?' if np.isnan(y[i]) else int(y[i])))
-
+    f.write('\t'.join('{}'.format('?' if np.isnan(X[i,j]) else X[i,j]) for j in range(Mi + Mf)) + '\t{}\n'.format('?' if np.isnan(y[i]) else int(y[i])))
 
 _tree.build_tree.restype = ct.POINTER(SIMPLE_TREE_NODE)
 r = _tree.build_tree(
      X.ctypes.data_as(ct.c_void_p),
      y.ctypes.data_as(ct.c_void_p),
      w.ctypes.data_as(ct.c_void_p),
-     N, minInstances, maxMajority, maxDepth, skipProb, type, M, cls_vals,
+     N, minInstances, maxMajority, maxDepth, skipProb, type, Mi + Mf, cls_vals,
      attr_vals.ctypes.data_as(ct.c_void_p),
      domain.ctypes.data_as(ct.c_void_p))
-print(r)
