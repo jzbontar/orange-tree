@@ -19,7 +19,7 @@ class RandomForestModel(Orange.classification.base.Model):
         self.estimators_ = []
         self.cls_vals = len(data.domain.class_var.values)
         for _ in range(learner.n_estimators):
-            tree = Orange.classification.tree.SimpleTreeLearner(
+            tree = Orange.classification.simple_tree.SimpleTreeLearner(
                 learner.min_instances, learner.max_depth, 
                 learner.max_majority, learner.skip_prob, True)
             self.estimators_.append(tree(data))

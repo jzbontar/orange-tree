@@ -471,7 +471,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 		int attr_vals;
 		float size_known, *attr_dist;
 
-		printf("* %2d %3d %3d %f\n", depth, best_attr, size, best_score);
+		// printf("* %2d %3d %3d %f\n", depth, best_attr, size, best_score);
 
 		attr_vals = args->attr_vals[best_attr];
 
@@ -516,7 +516,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 		struct Example *examples_lt, *examples_ge, *ex_lt, *ex_ge;
 		float size_lt, size_ge;
 
-		printf("* %2d %3d %3d %f %f\n", depth, best_attr, size, best_split, best_score);
+		// printf("* %2d %3d %3d %f %f\n", depth, best_attr, size, best_split, best_score);
 
 		assert(args->domain[best_attr] == FloatVar);
 

@@ -6,6 +6,9 @@ import Orange
 
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.so'))
 
+DiscreteNode = 0
+ContinuousNode = 1
+PredictorNode = 2
 Classification = 0
 Regression = 1
 IntVar = 0
@@ -168,6 +171,23 @@ class SimpleTreeModel(Orange.classification.base.Model):
             n.n = py_node.n
             n.sum = py_node.sum
         return node
+
+    def dumps_tree(self, node):
+        n = node.contents
+        xs = ['{', str(n.type)]
+        if n.type != PredictorNode:
+            xs.append(str(n.split_attr))
+            if n.type == ContinuousNode:
+                xs.append('{:.5f}'.format(n.split))
+        elif self.type == Classification:
+            for i in range(self.cls_vals):
+                xs.append('{:.2f}'.format(n.dist[i]))
+        else:
+            xs.append('{:.5f} {:.5f}'.format(n.n, n.sum))
+        for i in range(n.children_size):
+            xs.append(self.dumps_tree(n.children[i]))
+        xs.append('}')
+        return ' '.join(xs)
         
 if __name__ == '__main__':
     import Orange
@@ -201,7 +221,6 @@ if __name__ == '__main__':
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
     learner = SimpleTreeLearner(bootstrap=False, skip_prob='sqrt')
     model = learner(_data)
-    # model = pickle.loads(pickle.dumps(model))
     p = model(_data, model.Probs)
     for pp in p:
         print(pp)
