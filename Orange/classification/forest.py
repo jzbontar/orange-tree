@@ -16,21 +16,12 @@ class RandomForestLearner(Orange.classification.base.Learner):
 
 class RandomForestModel(Orange.classification.base.Model):
     def __init__(self, learner, data):
-        if isinstance(learner.skip_prob, float):
-            skip_prob = learner.skip_prob
-        elif learner.skip_prob == 'sqrt':
-            skip_prob = 1.0 - np.sqrt(data.X.shape[1]) / data.X.shape[1]
-        elif learner.skip_prob == 'log2':
-            skip_prob = 1.0 - np.log2(data.X.shape[1]) / data.X.shape[1]
-        else:
-            assert(False)
-        print(skip_prob)
         self.estimators_ = []
         self.cls_vals = len(data.domain.class_var.values)
         for _ in range(learner.n_estimators):
             tree = Orange.classification.tree.SimpleTreeLearner(
                 learner.min_instances, learner.max_depth, 
-                learner.max_majority, skip_prob, True)
+                learner.max_majority, learner.skip_prob, True)
             self.estimators_.append(tree(data))
 
     def predict_storage(self, data):

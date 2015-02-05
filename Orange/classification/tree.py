@@ -6,9 +6,6 @@ import Orange
 
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tree.so'))
 
-DiscreteNode = 0
-ContinuousNode = 1
-PredictorNode = 2
 Classification = 0
 Regression = 1
 IntVar = 0
@@ -21,15 +18,15 @@ class SIMPLE_TREE_NODE(ct.Structure):
     pass
 
 SIMPLE_TREE_NODE._fields_ = [
-        ('type', ct.c_int),
-        ('children_size', ct.c_int),
-        ('split_attr', ct.c_int),
-        ('split', ct.c_float),
-        ('children', ct.POINTER(ct.POINTER(SIMPLE_TREE_NODE))),
-        ('dist', ct.POINTER(ct.c_float)),
-        ('n', ct.c_float),
-        ('sum', ct.c_float),
-    ]
+    ('type', ct.c_int),
+    ('children_size', ct.c_int),
+    ('split_attr', ct.c_int),
+    ('split', ct.c_float),
+    ('children', ct.POINTER(ct.POINTER(SIMPLE_TREE_NODE))),
+    ('dist', ct.POINTER(ct.c_float)),
+    ('n', ct.c_float),
+    ('sum', ct.c_float),
+]
 
 _tree.build_tree.restype = ct.POINTER(SIMPLE_TREE_NODE)
 _tree.new_node.restype = ct.POINTER(SIMPLE_TREE_NODE)
@@ -51,6 +48,7 @@ class SimpleTreeLearner(Orange.classification.base.Learner):
 class SimpleTreeModel(Orange.classification.base.Model):
     def __init__(self, learner, data):
         self.num_attrs = data.X.shape[1]
+
         if isinstance(data.domain.class_var, Orange.data.DiscreteVariable):
             self.type = Classification
             self.cls_vals = len(data.domain.class_var.values)
@@ -59,6 +57,16 @@ class SimpleTreeModel(Orange.classification.base.Model):
             self.cls_vals = 0
         else:
             assert(False)
+
+        if isinstance(learner.skip_prob, float):
+            skip_prob = learner.skip_prob
+        elif learner.skip_prob == 'sqrt':
+            skip_prob = 1.0 - np.sqrt(data.X.shape[1]) / data.X.shape[1]
+        elif learner.skip_prob == 'log2':
+            skip_prob = 1.0 - np.log2(data.X.shape[1]) / data.X.shape[1]
+        else:
+            raise ValueError("skip_prob not valid: {}".format(learner.skip_prob))
+
         attr_vals = []
         domain = []
         for attr in data.domain.attributes:
@@ -72,6 +80,7 @@ class SimpleTreeModel(Orange.classification.base.Model):
                 assert(False)
         attr_vals = np.array(attr_vals, dtype=np.int32)
         domain = np.array(domain, dtype=np.int32)
+
         self.node = _tree.build_tree(
             data.X.ctypes.data_as(c_double_p),
             data.Y.ctypes.data_as(c_double_p),
@@ -81,7 +90,7 @@ class SimpleTreeModel(Orange.classification.base.Model):
             learner.min_instances,
             learner.max_depth,
             ct.c_float(learner.max_majority),
-            ct.c_float(learner.skip_prob),
+            ct.c_float(skip_prob),
             self.type,
             self.num_attrs,
             self.cls_vals,
@@ -126,6 +135,7 @@ class SimpleTreeModel(Orange.classification.base.Model):
         self.__dict__.update(dict)
         self.node = self.__from_python(py_node)
 
+    # for pickling a tree
     def __to_python(self, node):
         n = node.contents
         py_node = SimpleTreeNode()
@@ -141,6 +151,7 @@ class SimpleTreeModel(Orange.classification.base.Model):
             py_node.sum = n.sum
         return py_node
 
+    # for unpickling a tree
     def __from_python(self, py_node):
         node = _tree.new_node(py_node.children_size, self.type, self.cls_vals)
         n = node.contents
@@ -188,7 +199,7 @@ if __name__ == '__main__':
     f.close()
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
-    learner = SimpleTreeLearner(bootstrap=False)
+    learner = SimpleTreeLearner(bootstrap=False, skip_prob='sqrt')
     model = learner(_data)
     # model = pickle.loads(pickle.dumps(model))
     p = model(_data, model.Probs)
