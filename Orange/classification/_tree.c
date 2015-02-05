@@ -570,19 +570,24 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 }
 
 struct SimpleTreeNode *
-build_tree(double *x, double *y, double *w, int size, int size_w, int minInstances, int maxDepth, float maxMajority, float skipProb, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain)
+build_tree(double *x, double *y, double *w, int size, int size_w, int minInstances, int maxDepth, float maxMajority, float skipProb, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain, int bootstrap)
 {
 	struct Example *examples;
 	struct SimpleTreeNode *tree;
 	struct Args args;
-	int i;
+	int i, ind;
 
 	/* create a tabel with pointers to examples */
 	ASSERT(examples = (struct Example *)calloc(size, sizeof *examples));
 	for (i = 0; i < size; i++) {
-		examples[i].x = x + i * num_attrs;
-		examples[i].y = y[i];
-		examples[i].weight = size_w ? w[i] : 1.0;
+		if (bootstrap) {
+			ind = rand() % size;
+		} else {
+			ind = i;
+		}
+		examples[i].x = x + ind * num_attrs;
+		examples[i].y = y[ind];
+		examples[i].weight = size_w ? w[ind] : 1.0;
 	}
 	args.minInstances = minInstances;
 	args.maxDepth = maxDepth;

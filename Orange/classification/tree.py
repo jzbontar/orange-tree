@@ -38,11 +38,12 @@ class SimpleTreeNode:
     pass
 
 class SimpleTreeLearner(Learner):
-    def __init__(self, minInstances=2, maxDepth=1024, maxMajority=1.0, skipProb=0.0):
+    def __init__(self, minInstances=2, maxDepth=1024, maxMajority=1.0, skipProb=0.0, bootstrap=False):
         self.minInstances = minInstances
         self.maxDepth = maxDepth
         self.maxMajority = maxMajority
         self.skipProb = skipProb
+        self.bootstrap = bootstrap
     
     def fit_storage(self, data):
         return SimpleTreeModel(self, data)
@@ -85,9 +86,10 @@ class SimpleTreeModel(Model):
             self.num_attrs,
             self.cls_vals,
             attr_vals.ctypes.data_as(c_int_p),
-            domain.ctypes.data_as(c_int_p))
+            domain.ctypes.data_as(c_int_p),
+            learner.bootstrap)
 
-    def predict(self, X):
+    def predict_storage(self, data):
         if self.type == Classification:
             p = np.zeros((X.shape[0], self.cls_vals))
             _tree.predict_classification(
@@ -111,14 +113,18 @@ class SimpleTreeModel(Model):
             assert(False)
 
     def __del__(self):
-        pass
+        _tree.destroy_tree(self.node, self.type)
 
     def __getstate__(self):
-        state = self.__dict__.copy()
-        return state
+        dict = self.__dict__.copy()
+        del dict['node']
+        py_node = self.__to_python(self.node)
+        return dict, py_node
 
-    def __setstate__(self):
-        pass
+    def __setstate__(self, state):
+        dict, py_node = state
+        self.__dict__.update(dict)
+        self.node = self.__from_python(py_node)
 
     def __to_python(self, node):
         n = node.contents
@@ -154,9 +160,10 @@ class SimpleTreeModel(Model):
         
 if __name__ == '__main__':
     import Orange
+    import pickle
     np.random.seed(42)
     
-    type = Regression
+    type = Classification
     
     N, Mi, Mf = 50, 6, 2
     Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
@@ -181,9 +188,13 @@ if __name__ == '__main__':
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
     
-    learner = SimpleTreeLearner()
+    learner = SimpleTreeLearner(bootstrap=True)
+    learner = pickle.loads(pickle.dumps(learner))
+
     model = learner(_data)
-    p = model(_data)
+    # model = pickle.loads(pickle.dumps(model))
+
+    p = model(_data, model.Probs)
     for pp in p:
         print(pp)
 
