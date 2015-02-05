@@ -593,6 +593,7 @@ build_tree(double *x, double *y, double *w, int size, int size_w, int minInstanc
 	args.num_attrs = num_attrs;
 	args.cls_vals = cls_vals;
 	args.attr_vals = attr_vals;
+	printf("attr_vals: %d\n", attr_vals[0]);
 	args.domain = domain;
 	tree = build_tree_(examples, size, 0, NULL, &args);
 	free(examples);
@@ -616,14 +617,14 @@ destroy_tree(struct SimpleTreeNode *node, int type)
 }
 
 void
-predict_classification_(double *x, struct SimpleTreeNode *node, struct Args *args, double *p)
+predict_classification_(double *x, struct SimpleTreeNode *node, int cls_vals, double *p)
 {
     int i;
 
     while (node->type != PredictorNode) {
 		if (isnan(x[node->split_attr])) {
             for (i = 0; i < node->children_size; i++) {
-                predict_classification_(x, node->children[i], args, p);
+                predict_classification_(x, node->children[i], cls_vals, p);
             }
 			return;
         } else if (node->type == DiscreteNode) {
@@ -633,40 +634,40 @@ predict_classification_(double *x, struct SimpleTreeNode *node, struct Args *arg
             node = node->children[x[node->split_attr] >= node->split];
         }
 	}
-	for (i = 0; i < args->cls_vals; i++) {
+	for (i = 0; i < cls_vals; i++) {
 		p[i] += node->dist[i];
 	}
 }
 
 void
-predict_classification(double *x, int size, struct SimpleTreeNode *node, struct Args *args, double *p)
+predict_classification(double *x, int size, struct SimpleTreeNode *node, int num_attrs, int cls_vals, double *p)
 {
 	int i, j;
 	double *xx, *pp;
 
 	for (i = 0; i < size; i++) {
-		xx = x + i * args->num_attrs;
-		pp = p + i * args->cls_vals;
-		predict_classification_(xx, node, args, pp);
+		xx = x + i * num_attrs;
+		pp = p + i * cls_vals;
+		predict_classification_(xx, node, cls_vals, pp);
 		double sum = 0;
-		for (j = 0; j < args->cls_vals; j++) {
+		for (j = 0; j < cls_vals; j++) {
 			sum += pp[j];
 		}
-		for (j = 0; j < args->cls_vals; j++) {
+		for (j = 0; j < cls_vals; j++) {
 			pp[j] /= sum;
 		}
 	}
 }
 
 void
-predict_regression_(double *x, struct SimpleTreeNode *node, struct Args *args, double *sum, double *n)
+predict_regression_(double *x, struct SimpleTreeNode *node, double *sum, double *n)
 {
     int i;
 
     while (node->type != PredictorNode) {
 		if (isnan(x[node->split_attr])) {
             for (i = 0; i < node->children_size; i++) {
-                predict_regression_(x, node->children[i], args, sum, n);
+                predict_regression_(x, node->children[i], sum, n);
             }
             return;
         } else if (node->type == DiscreteNode) {
@@ -683,14 +684,14 @@ predict_regression_(double *x, struct SimpleTreeNode *node, struct Args *args, d
 }
 
 void
-predict_regression(double *x, int size, struct SimpleTreeNode *node, struct Args *args, double *p)
+predict_regression(double *x, int size, struct SimpleTreeNode *node, int num_attrs, double *p)
 {
 	int i;
 	double sum, n;
 
 	for (i = 0; i < size; i++) {
 		sum = n = 0;
-		predict_regression_(x + i * args->num_attrs, node, args, &sum, &n);
+		predict_regression_(x + i * num_attrs, node, &sum, &n);
 		p[i] = sum / n;
 	}
 }
