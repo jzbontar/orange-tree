@@ -370,6 +370,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 
 	ASSERT(node = (struct SimpleTreeNode *)malloc(sizeof *node));
 
+	cls_mse = cls_entropy = 0.0;
 	if (args->type == Classification) {
 		ASSERT(node->dist = (float *)calloc(cls_vals, sizeof(float)));
 
@@ -432,6 +433,8 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 
 	/* score attributes */
 	best_score = -INFINITY;
+	best_split = 0;
+	best_attr = 0;
 
 	for (i = 0; i < args->num_attrs; i++) {
 		if (!args->attr_split_so_far[i]) {
@@ -598,7 +601,6 @@ build_tree(double *x, double *y, double *w, int size, int size_w, int min_instan
 	args.num_attrs = num_attrs;
 	args.cls_vals = cls_vals;
 	args.attr_vals = attr_vals;
-	printf("attr_vals: %d\n", attr_vals[0]);
 	args.domain = domain;
 	tree = build_tree_(examples, size, 0, NULL, &args);
 	free(examples);

@@ -2,7 +2,7 @@ import os
 import ctypes as ct
 import numpy as np
 
-from Orange.classification.base import Learner, Model
+import Orange
 
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tree.so'))
 
@@ -37,7 +37,7 @@ _tree.new_node.restype = ct.POINTER(SIMPLE_TREE_NODE)
 class SimpleTreeNode:
     pass
 
-class SimpleTreeLearner(Learner):
+class SimpleTreeLearner(Orange.classification.base.Learner):
     def __init__(self, min_instances=2, max_depth=1024, max_majority=1.0, skip_prob=0.0, bootstrap=False):
         self.min_instances = min_instances
         self.max_depth = max_depth
@@ -48,7 +48,7 @@ class SimpleTreeLearner(Learner):
     def fit_storage(self, data):
         return SimpleTreeModel(self, data)
 
-class SimpleTreeModel(Model):
+class SimpleTreeModel(Orange.classification.base.Model):
     def __init__(self, learner, data):
         self.num_attrs = data.X.shape[1]
         if isinstance(data.domain.class_var, Orange.data.DiscreteVariable):
@@ -91,20 +91,20 @@ class SimpleTreeModel(Model):
 
     def predict_storage(self, data):
         if self.type == Classification:
-            p = np.zeros((X.shape[0], self.cls_vals))
+            p = np.zeros((data.X.shape[0], self.cls_vals))
             _tree.predict_classification(
-                X.ctypes.data_as(c_double_p),
-                X.shape[0],
+                data.X.ctypes.data_as(c_double_p),
+                data.X.shape[0],
                 self.node,
                 self.num_attrs,
                 self.cls_vals,
                 p.ctypes.data_as(c_double_p))
             return p.argmax(axis=1), p
         elif self.type == Regression:
-            p = np.zeros(X.shape[0])
+            p = np.zeros(data.X.shape[0])
             _tree.predict_regression(
-                X.ctypes.data_as(c_double_p),
-                X.shape[0],
+                data.X.ctypes.data_as(c_double_p),
+                data.X.shape[0],
                 self.node,
                 self.num_attrs,
                 p.ctypes.data_as(c_double_p))
@@ -161,20 +161,21 @@ class SimpleTreeModel(Model):
 if __name__ == '__main__':
     import Orange
     import pickle
+    import time
     np.random.seed(42)
     
     type = Classification
     
-    N, Mi, Mf = 50, 6, 2
+    N, Mi, Mf = 50, 5, 5
     Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
     Xf = np.random.normal(0, 2, (N, Mf)).astype(np.float64)
-    X = np.hstack((Xi, Xf))
+    X_ = np.hstack((Xi, Xf))
     if type == Classification:
         y = np.random.randint(0, 2, N).astype(np.float64)
     else:
         y = np.random.normal(0, 2, N).astype(np.float64)
     
-    # X[np.random.random(X.shape) < 0.1] = np.nan
+    # X_[np.random.random(X_.shape) < 0.1] = np.nan
     # y[np.random.random(y.shape) < 0.1] = np.nan
     
     # create .tab
@@ -183,18 +184,15 @@ if __name__ == '__main__':
     f.write('d\t' * Mi + 'c\t' * Mf + '{}\n'.format('d' if type == Classification else 'c'))
     f.write('\t' * (Mi + Mf) + 'class\n')
     for i in range(N):
-        f.write('\t'.join('{}'.format('?' if np.isnan(X[i,j]) else X[i,j]) for j in range(Mi + Mf)) + '\t{}\n'.format('?' if np.isnan(y[i]) else y[i]))
+        f.write('\t'.join('{}'.format('?' if np.isnan(X_[i,j]) else X_[i,j]) for j in range(Mi + Mf)) + '\t{}\n'.format('?' if np.isnan(y[i]) else y[i]))
     f.close()
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
-    
     learner = SimpleTreeLearner(bootstrap=False)
-    learner = pickle.loads(pickle.dumps(learner))
-
+    t = time.time()
     model = learner(_data)
-    # model = pickle.loads(pickle.dumps(model))
-
-    p = model(_data, model.Probs)
-    for pp in p:
-        print(pp)
+    print(time.time() - t)
+    # p = model(_data, model.Probs)
+    # for pp in p:
+    #     print(pp)
 
