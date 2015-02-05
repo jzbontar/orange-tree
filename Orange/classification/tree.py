@@ -38,11 +38,11 @@ class SimpleTreeNode:
     pass
 
 class SimpleTreeLearner(Learner):
-    def __init__(self, minInstances=2, maxDepth=1024, maxMajority=1.0, skipProb=0.0, bootstrap=False):
-        self.minInstances = minInstances
-        self.maxDepth = maxDepth
-        self.maxMajority = maxMajority
-        self.skipProb = skipProb
+    def __init__(self, min_instances=2, max_depth=1024, max_majority=1.0, skip_prob=0.0, bootstrap=False):
+        self.min_instances = min_instances
+        self.max_depth = max_depth
+        self.max_majority = max_majority
+        self.skip_prob = skip_prob
         self.bootstrap = bootstrap
     
     def fit_storage(self, data):
@@ -78,10 +78,10 @@ class SimpleTreeModel(Model):
             data.W.ctypes.data_as(c_double_p),
             data.X.shape[0], 
             data.W.size,
-            learner.minInstances,
-            learner.maxDepth,
-            ct.c_float(learner.maxMajority),
-            ct.c_float(learner.skipProb),
+            learner.min_instances,
+            learner.max_depth,
+            ct.c_float(learner.max_majority),
+            ct.c_float(learner.skip_prob),
             self.type,
             self.num_attrs,
             self.cls_vals,
@@ -188,7 +188,7 @@ if __name__ == '__main__':
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
     
-    learner = SimpleTreeLearner(bootstrap=True)
+    learner = SimpleTreeLearner(bootstrap=False)
     learner = pickle.loads(pickle.dumps(learner))
 
     model = learner(_data)

@@ -13,8 +13,8 @@
 #endif // _MSC_VER
 
 struct Args {
-	int minInstances, maxDepth;
-	float maxMajority, skipProb;
+	int min_instances, max_depth;
+	float max_majority, skip_prob;
 
 	int type, *attr_split_so_far, num_attrs, cls_vals, *attr_vals, *domain;
 };
@@ -79,7 +79,7 @@ test_min_examples(float *attr_dist, int attr_vals, struct Args *args)
 	int i;
 
 	for (i = 0; i < attr_vals; i++) {
-		if (attr_dist[i] > 0.0 && attr_dist[i] < args->minInstances)
+		if (attr_dist[i] > 0.0 && attr_dist[i] < args->min_instances)
 			return 0;
 	}
 	return 1;
@@ -89,13 +89,13 @@ float
 gain_ratio_c(struct Example *examples, int size, int attr, float cls_entropy, struct Args *args, float *best_split)
 {
 	struct Example *ex, *ex_end, *ex_next;
-	int i, cls, cls_vals, minInstances, size_known;
+	int i, cls, cls_vals, min_instances, size_known;
 	float score, *dist_lt, *dist_ge, *attr_dist, best_score, size_weight;
 
 	cls_vals = args->cls_vals;
 
-	/* minInstances should be at least 1, otherwise there is no point in splitting */
-	minInstances = args->minInstances < 1 ? 1 : args->minInstances;
+	/* min_instances should be at least 1, otherwise there is no point in splitting */
+	min_instances = args->min_instances < 1 ? 1 : args->min_instances;
 
 	/* allocate space */
 	ASSERT(dist_lt = (float *)calloc(cls_vals, sizeof *dist_lt));
@@ -122,7 +122,7 @@ gain_ratio_c(struct Example *examples, int size, int attr, float cls_entropy, st
 	attr_dist[1] = size_weight;
 	best_score = -INFINITY;
 
-	for (ex = examples, ex_end = ex + size_known - minInstances, ex_next = ex + 1, i = 0; ex < ex_end; ex++, ex_next++, i++) {
+	for (ex = examples, ex_end = ex + size_known - min_instances, ex_next = ex + 1, i = 0; ex < ex_end; ex++, ex_next++, i++) {
 		if (!isnan(ex->y)) {
 			cls = ex->y;
 			dist_lt[cls] += ex->weight;
@@ -131,7 +131,7 @@ gain_ratio_c(struct Example *examples, int size, int attr, float cls_entropy, st
 		attr_dist[0] += ex->weight;
 		attr_dist[1] -= ex->weight;
 
-		if (ex->x[attr] == ex_next->x[attr] || i + 1 < minInstances)
+		if (ex->x[attr] == ex_next->x[attr] || i + 1 < min_instances)
 			continue;
 
 		/* gain ratio */
@@ -223,15 +223,15 @@ float
 mse_c(struct Example *examples, int size, int attr, float cls_mse, struct Args *args, float *best_split)
 {
 	struct Example *ex, *ex_end, *ex_next;
-	int i, minInstances, size_known;
+	int i, min_instances, size_known;
 	float size_attr_known, size_weight, cls_val, best_score, size_attr_cls_known, score;
 
 	struct Variance {
 		double n, sum, sum2;
 	} var_lt = {0.0, 0.0, 0.0}, var_ge = {0.0, 0.0, 0.0};
 
-	/* minInstances should be at least 1, otherwise there is no point in splitting */
-	minInstances = args->minInstances < 1 ? 1 : args->minInstances;
+	/* min_instances should be at least 1, otherwise there is no point in splitting */
+	min_instances = args->min_instances < 1 ? 1 : args->min_instances;
 
 	/* sort */
 	compar_attr = attr;
@@ -262,7 +262,7 @@ mse_c(struct Example *examples, int size, int attr, float cls_mse, struct Args *
 	size_attr_cls_known = var_ge.n;
 	best_score = -INFINITY;
 
-	for (ex = examples, ex_end = ex + size_known - minInstances, ex_next = ex + 1, i = 0; ex < ex_end; ex++, ex_next++, i++) {
+	for (ex = examples, ex_end = ex + size_known - min_instances, ex_next = ex + 1, i = 0; ex < ex_end; ex++, ex_next++, i++) {
 		if (!isnan(ex->y)) {
 			cls_val = ex->y;
 			var_lt.n += ex->weight;
@@ -275,7 +275,7 @@ mse_c(struct Example *examples, int size, int attr, float cls_mse, struct Args *
 			var_ge.sum2 -= ex->weight * cls_val * cls_val;
 		}
 
-		if (ex->x[attr] == ex_next->x[attr] || i + 1 < minInstances)
+		if (ex->x[attr] == ex_next->x[attr] || i + 1 < min_instances)
 			continue;
 
 		/* compute mse */
@@ -391,7 +391,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 
 		/* stopping criterion: majority class */
 		for (i = 0; i < cls_vals; i++)
-			if (node->dist[i] / size_weight >= args->maxMajority)
+			if (node->dist[i] / size_weight >= args->max_majority)
 				return make_predictor(node, examples, size, args);
 
 		cls_entropy = entropy(node->dist, cls_vals);
@@ -427,7 +427,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 	}
 
 	/* stopping criterion: depth exceeds limit */
-	if (depth == args->maxDepth)
+	if (depth == args->max_depth)
 		return make_predictor(node, examples, size, args);
 
 	/* score attributes */
@@ -436,7 +436,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 	for (i = 0; i < args->num_attrs; i++) {
 		if (!args->attr_split_so_far[i]) {
 			/* select random subset of attributes */
-			if ((double)rand() / (double)RAND_MAX < args->skipProb)
+			if ((double)rand() / (double)RAND_MAX < args->skip_prob)
 				continue;
 
 			if (args->domain[i] == IntVar) {
@@ -570,7 +570,7 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 }
 
 struct SimpleTreeNode *
-build_tree(double *x, double *y, double *w, int size, int size_w, int minInstances, int maxDepth, float maxMajority, float skipProb, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain, int bootstrap)
+build_tree(double *x, double *y, double *w, int size, int size_w, int min_instances, int max_depth, float max_majority, float skip_prob, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain, int bootstrap)
 {
 	struct Example *examples;
 	struct SimpleTreeNode *tree;
@@ -589,10 +589,10 @@ build_tree(double *x, double *y, double *w, int size, int size_w, int minInstanc
 		examples[i].y = y[ind];
 		examples[i].weight = size_w ? w[ind] : 1.0;
 	}
-	args.minInstances = minInstances;
-	args.maxDepth = maxDepth;
-	args.maxMajority = maxMajority;
-	args.skipProb = skipProb;
+	args.min_instances = min_instances;
+	args.max_depth = max_depth;
+	args.max_majority = max_majority;
+	args.skip_prob = skip_prob;
 	args.type = type;
 	ASSERT(args.attr_split_so_far = (int *)calloc(num_attrs, sizeof(int)));
 	args.num_attrs = num_attrs;
