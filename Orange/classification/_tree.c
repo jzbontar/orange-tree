@@ -570,23 +570,33 @@ build_tree_(struct Example *examples, int size, int depth, struct SimpleTreeNode
 }
 
 struct SimpleTreeNode *
-build_tree(double *x, double *y, double *w, int size, struct Args *args)
+build_tree(double *x, double *y, double *w, int size, int size_w, int minInstances, int maxDepth, float maxMajority, float skipProb, int type, int num_attrs, int cls_vals, int *attr_vals, int *domain)
 {
 	struct Example *examples;
 	struct SimpleTreeNode *tree;
+	struct Args args;
 	int i;
 
 	/* create a tabel with pointers to examples */
 	ASSERT(examples = (struct Example *)calloc(size, sizeof *examples));
 	for (i = 0; i < size; i++) {
-		examples[i].x = x + i * args->num_attrs;
+		examples[i].x = x + i * num_attrs;
 		examples[i].y = y[i];
-		examples[i].weight = w[i];
+		examples[i].weight = size_w ? w[i] : 1.0;
 	}
-	ASSERT(args->attr_split_so_far = (int *)calloc(args->num_attrs, sizeof(int)));
-	tree = build_tree_(examples, size, 0, NULL, args);
+	args.minInstances = minInstances;
+	args.maxDepth = maxDepth;
+	args.maxMajority = maxMajority;
+	args.skipProb = skipProb;
+	args.type = type;
+	ASSERT(args.attr_split_so_far = (int *)calloc(num_attrs, sizeof(int)));
+	args.num_attrs = num_attrs;
+	args.cls_vals = cls_vals;
+	args.attr_vals = attr_vals;
+	args.domain = domain;
+	tree = build_tree_(examples, size, 0, NULL, &args);
 	free(examples);
-	free(args->attr_split_so_far);
+	free(args.attr_split_so_far);
 	return tree;
 }
 
@@ -685,25 +695,17 @@ predict_regression(double *x, int size, struct SimpleTreeNode *node, struct Args
 	}
 }
 
-void
-save_tree_(struct SimpleTreeNode *node, struct Args *args, FILE *stream)
+struct SimpleTreeNode *
+new_node(int children_size, int type, int cls_vals)
 {
-	int i;
-
-	fprintf(stream, "{ %d %d ", node->type, node->children_size);
-
-	if (node->type != PredictorNode)
-		fprintf(stream, "%d %f ", node->split_attr, node->split);
-
-	for (i = 0; i < node->children_size; i++)
-		save_tree_(node->children[i], args);
-
-	if (args->type == Classification) {
-		for (i = 0; i < args->cls_vals; i++)
-			fprintf(stream, "%d ", (int)node->dist[i]);
-	} else {
-		assert(args->type == Regression);
-		fprintf(stream, "%f %f ", node->n, node->sum);
+	struct SimpleTreeNode *node;
+	ASSERT(node = (struct SimpleTreeNode *)malloc(sizeof *node));
+	node->children_size = children_size;
+	if (children_size) {
+		ASSERT(node->children = (struct SimpleTreeNode **)calloc(node->children_size, sizeof *node->children));
 	}
-	fprintf(stream, "} ");
+	if (type == Classification) {
+		ASSERT(node->dist = (float *)calloc(cls_vals, sizeof(float)));
+	}
+	return node;
 }
