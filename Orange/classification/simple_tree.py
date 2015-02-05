@@ -4,7 +4,7 @@ import numpy as np
 
 import Orange
 
-_tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_tree.so'))
+_tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.so'))
 
 Classification = 0
 Regression = 1
