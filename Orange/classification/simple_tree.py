@@ -4,6 +4,8 @@ import numpy as np
 
 import Orange
 
+__all__ = ['SimpleTreeLearner']
+
 _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.so'))
 
 DiscreteNode = 0
@@ -195,7 +197,7 @@ if __name__ == '__main__':
     import time
     np.random.seed(42)
     
-    type = Classification
+    type = Regression
     
     N, Mi, Mf = 50, 5, 5
     Xi = np.random.randint(0, 2, (N, Mi)).astype(np.float64)
@@ -219,9 +221,9 @@ if __name__ == '__main__':
     f.close()
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
-    learner = SimpleTreeLearner(bootstrap=False, skip_prob='sqrt')
+    learner = SimpleTreeLearner()
     model = learner(_data)
-    p = model(_data, model.Probs)
+    p = model(_data) #, model.Probs)
     for pp in p:
         print(pp)
 
