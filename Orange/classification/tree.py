@@ -189,10 +189,9 @@ if __name__ == '__main__':
     
     _data = Orange.data.Table('/home/jure/tmp/foo.tab')
     learner = SimpleTreeLearner(bootstrap=False)
-    t = time.time()
     model = learner(_data)
-    print(time.time() - t)
-    # p = model(_data, model.Probs)
-    # for pp in p:
-    #     print(pp)
+    # model = pickle.loads(pickle.dumps(model))
+    p = model(_data, model.Probs)
+    for pp in p:
+        print(pp)
 
