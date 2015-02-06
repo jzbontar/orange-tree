@@ -40,12 +40,13 @@ class SimpleTreeNode:
     pass
 
 class SimpleTreeLearner(Orange.classification.base.Learner):
-    def __init__(self, min_instances=2, max_depth=1024, max_majority=1.0, skip_prob=0.0, bootstrap=False):
+    def __init__(self, min_instances=2, max_depth=1024, max_majority=1.0, skip_prob=0.0, bootstrap=False, seed=42):
         self.min_instances = min_instances
         self.max_depth = max_depth
         self.max_majority = max_majority
         self.skip_prob = skip_prob
         self.bootstrap = bootstrap
+        self.seed = seed
     
     def fit_storage(self, data):
         return SimpleTreeModel(self, data)
@@ -53,6 +54,9 @@ class SimpleTreeLearner(Orange.classification.base.Learner):
 class SimpleTreeModel(Orange.classification.base.Model):
     def __init__(self, learner, data):
         self.num_attrs = data.X.shape[1]
+
+        if len(data.domain.class_vars) != 1:
+            raise ValueError("Number of classes should be 1: {}".format(len(data.domain.class_vars)))
 
         if isinstance(data.domain.class_var, Orange.data.DiscreteVariable):
             self.type = Classification
@@ -101,7 +105,8 @@ class SimpleTreeModel(Orange.classification.base.Model):
             self.cls_vals,
             attr_vals.ctypes.data_as(c_int_p),
             domain.ctypes.data_as(c_int_p),
-            learner.bootstrap)
+            learner.bootstrap,
+            learner.seed)
 
     def predict_storage(self, data):
         if self.type == Classification:

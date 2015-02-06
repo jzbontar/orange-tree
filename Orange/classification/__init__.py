@@ -10,3 +10,4 @@ from .softmax_regression import *
 from .svm import *
 from .tree import *
 from .simple_tree import *
+from .forest import *
