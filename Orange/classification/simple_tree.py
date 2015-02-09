@@ -1,5 +1,7 @@
 import os
+import platform
 import ctypes as ct
+
 import numpy as np
 
 import Orange
