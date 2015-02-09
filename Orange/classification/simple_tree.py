@@ -57,6 +57,30 @@ class SimpleTreeLearner(Orange.classification.base.Learner):
 
     def __init__(self, min_instances=2, max_depth=1024, max_majority=1.0,
                  skip_prob=0.0, bootstrap=False, seed=42):
+        '''
+        Parameters
+        ----------
+
+        min_instance : Minimal number of instances in leaves.  Instance count
+        is weighed.
+
+        max_depth : Maximal depth of tree.
+
+        max_majority : Maximal proportion of majority class. When this is
+        exceeded, induction stops (only used for classification).
+
+        skip_prob : an attribute will be skipped with probability
+        ``skip_prob``.
+
+          - if float, then skip attribute with this probability.
+          - if "sqrt", then `skip_prob = 1 - sqrt(n_features) / n_features`
+          - if "log2", then `skip_prob = 1 - log2(n_features) / n_features`
+
+        bootstrap : Bootstrap dataset.
+
+        seed : Random seed.
+        '''
+
         self.min_instances = min_instances
         self.max_depth = max_depth
         self.max_majority = max_majority
