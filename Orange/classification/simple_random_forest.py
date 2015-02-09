@@ -2,9 +2,11 @@ import numpy as np
 
 import Orange
 
-__all__ = ['RandomForestLearner']
+__all__ = ['SimpleRandomForestLearner']
 
-class RandomForestLearner(Orange.classification.base.Learner):
+
+class SimpleRandomForestLearner(Orange.classification.base.Learner):
+
     def __init__(self, n_estimators=10, skip_prob='sqrt', max_depth=1024,
                  min_instances=2, max_majority=1.0, seed=42):
         self.n_estimators = n_estimators
@@ -15,9 +17,11 @@ class RandomForestLearner(Orange.classification.base.Learner):
         self.seed = seed
 
     def fit_storage(self, data):
-        return RandomForestModel(self, data)
+        return SimpleRandomForestModel(self, data)
 
-class RandomForestModel(Orange.classification.base.Model):
+
+class SimpleRandomForestModel(Orange.classification.base.Model):
+
     def __init__(self, learner, data):
         self.estimators_ = []
 
@@ -30,7 +34,7 @@ class RandomForestModel(Orange.classification.base.Model):
         else:
             assert(False)
         tree = Orange.classification.simple_tree.SimpleTreeLearner(
-            learner.min_instances, learner.max_depth, 
+            learner.min_instances, learner.max_depth,
             learner.max_majority, learner.skip_prob, True)
         for i in range(learner.n_estimators):
             tree.seed = learner.seed + i
@@ -51,11 +55,3 @@ class RandomForestModel(Orange.classification.base.Model):
             return p
         else:
             assert(False)
-
-if __name__ == '__main__':
-    import time
-    from Orange.data import Table
-    d = Table('iris')
-
-    l = RandomForestLearner(n_estimators=10, skip_prob='sqrt')
-    m = l(d)
