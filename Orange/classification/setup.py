@@ -1,7 +1,18 @@
-import subprocess
 import os
 
-# TODO: use distutils for this
-os.chdir('Orange/classification')
-subprocess.check_output('gcc -Wall -O3 -fPIC --shared -o _tree.so _tree.c'.split())
-os.chdir('../..')
+import numpy
+
+
+def configuration(parent_package='', top_path=None):
+    from numpy.distutils.misc_util import Configuration
+
+    libraries = []
+    if os.name == 'posix':
+        libraries.append('m')
+
+    config = Configuration('classification', parent_package, top_path)
+    config.add_extension('_simple_tree',
+                         sources=['_simple_tree.c'],
+                         include_dirs=[],
+                         libraries=libraries)
+    return config

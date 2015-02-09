@@ -6,7 +6,7 @@ import Orange
 
 __all__ = ['SimpleTreeLearner']
 
-_tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.so'))
+_tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.cpython-34m.so'))
 
 DiscreteNode = 0
 ContinuousNode = 1
