@@ -4,13 +4,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifndef _MSC_VER
-	#include "err.h"
-	#define ASSERT(x) if (!(x)) err(1, "%s:%d", __FILE__, __LINE__)
-#else
-	#define ASSERT(x) if(!(x)) exit(1)
-	#define log2(x) log((double) (x)) / log(2.0)
-#endif // _MSC_VER
+#define ASSERT(x) if(!(x)) exit(1)
+#define log2(x) log((double) (x)) / log(2.0)
 
 struct Args {
 	int min_instances, max_depth;

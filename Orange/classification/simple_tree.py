@@ -12,6 +12,8 @@ if platform.system() == 'Linux':
     _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.cpython-34m.so'))
 elif platform.system() == 'Darwin':
     _tree = ct.cdll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.so'))
+else:
+    _tree = ct.pydll.LoadLibrary(os.path.join(os.path.dirname(os.path.abspath(__file__)), '_simple_tree.pyd'))
 
 DiscreteNode = 0
 ContinuousNode = 1
